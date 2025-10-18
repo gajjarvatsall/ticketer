@@ -1,0 +1,150 @@
+version: '3.8'
+
+services:
+  # MongoDB instances
+  auth-db:
+    image: mongo:7
+    container_name: auth-db
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: auth_db
+    volumes:
+      - auth_db_data:/data/db
+    ports:
+      - "27017:27017"
+
+  event-db:
+    image: mongo:7
+    container_name: event-db
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: event_db
+    volumes:
+      - event_db_data:/data/db
+    ports:
+      - "27018:27017"
+
+  ticket-db:
+    image: mongo:7
+    container_name: ticket-db
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: ticket_db
+    volumes:
+      - ticket_db_data:/data/db
+    ports:
+      - "27019:27017"
+
+  payment-db:
+    image: mongo:7
+    container_name: payment-db
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: payment_db
+    volumes:
+      - payment_db_data:/data/db
+    ports:
+      - "27020:27017"
+
+  # Microservices
+  auth-service:
+    build: ./auth
+    container_name: auth-service
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    environment:
+      - PORT=3001
+      - MONGODB_URI=mongodb://auth-db:27017/auth_db
+      - SESSION_SECRET=dev-session-secret-change-in-production
+      - NODE_ENV=development
+    depends_on:
+      - auth-db
+    volumes:
+      - ./auth:/app
+      - /app/node_modules
+
+  event-service:
+    build: ./event
+    container_name: event-service
+    restart: unless-stopped
+    ports:
+      - "3002:3002"
+    environment:
+      - PORT=3002
+      - MONGODB_URI=mongodb://event-db:27017/event_db
+      - AUTH_SERVICE_URL=http://auth-service:3001
+      - NODE_ENV=development
+    depends_on:
+      - event-db
+      - auth-service
+    volumes:
+      - ./event:/app
+      - /app/node_modules
+
+  ticket-service:
+    build: ./ticket
+    container_name: ticket-service
+    restart: unless-stopped
+    ports:
+      - "3003:3003"
+    environment:
+      - PORT=3003
+      - MONGODB_URI=mongodb://ticket-db:27017/ticket_db
+      - AUTH_SERVICE_URL=http://auth-service:3001
+      - EVENT_SERVICE_URL=http://event-service:3002
+      - NODE_ENV=development
+    depends_on:
+      - ticket-db
+      - auth-service
+      - event-service
+    volumes:
+      - ./ticket:/app
+      - /app/node_modules
+
+  payment-service:
+    build: ./payment
+    container_name: payment-service
+    restart: unless-stopped
+    ports:
+      - "3004:3004"
+    environment:
+      - PORT=3004
+      - MONGODB_URI=mongodb://payment-db:27017/payment_db
+      - AUTH_SERVICE_URL=http://auth-service:3001
+      - TICKET_SERVICE_URL=http://ticket-service:3003
+      - NODE_ENV=development
+    depends_on:
+      - payment-db
+      - auth-service
+      - ticket-service
+    volumes:
+      - ./payment:/app
+      - /app/node_modules
+
+  # Frontend
+  frontend:
+    build: ./frontend
+    container_name: frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_AUTH_SERVICE_URL=http://localhost:3001
+      - REACT_APP_EVENT_SERVICE_URL=http://localhost:3002
+      - REACT_APP_TICKET_SERVICE_URL=http://localhost:3003
+      - REACT_APP_PAYMENT_SERVICE_URL=http://localhost:3004
+    depends_on:
+      - auth-service
+      - event-service
+      - ticket-service
+      - payment-service
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+volumes:
+  auth_db_data:
+  event_db_data:
+  ticket_db_data:
+  payment_db_data:

@@ -1,0 +1,20 @@
+{
+  "name": "event-ticketing-platform",
+  "version": "1.0.0",
+  "description": "Event ticketing platform with microservices architecture",
+  "scripts": {
+    "install-all": "cd auth && npm install && cd ../event && npm install && cd ../ticket && npm install && cd ../payment && npm install && cd ../frontend && npm install",
+    "dev:auth": "cd auth && npm run dev",
+    "dev:event": "cd event && npm run dev",
+    "dev:ticket": "cd ticket && npm run dev",
+    "dev:payment": "cd payment && npm run dev",
+    "dev:frontend": "cd frontend && npm start",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:build": "docker-compose build",
+    "docker:logs": "docker-compose logs -f"
+  },
+  "keywords": ["event", "ticketing", "microservices"],
+  "author": "",
+  "license": "ISC"
+}
