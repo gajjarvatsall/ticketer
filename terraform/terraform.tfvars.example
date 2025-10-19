@@ -1,0 +1,29 @@
+# Terraform variables file template
+# Copy this to terraform.tfvars and fill in your values
+
+# AWS Configuration
+aws_region   = "us-east-1"
+environment  = "production"
+project_name = "ticketer"
+
+# EC2 Configuration
+instance_type = "t2.micro"  # Free tier eligible
+key_name      = ""  # Add your EC2 key pair name here (e.g., "ticketer-key")
+
+# Security
+mongodb_root_password = ""  # Generate: openssl rand -base64 32
+session_secret        = ""  # Generate: openssl rand -base64 32
+
+# Docker Registry (for GitHub Container Registry)
+docker_registry          = "ghcr.io"
+docker_registry_username = ""  # Your GitHub username
+docker_registry_password = ""  # GitHub Personal Access Token with write:packages permission
+
+# Networking (optional - defaults are fine)
+# vpc_cidr           = "10.0.0.0/16"
+# public_subnet_cidr = "10.0.1.0/24"
+# allowed_ssh_cidr   = ["YOUR_IP/32"]  # Restrict SSH access to your IP
+
+# Domain (optional)
+# domain_name   = "ticketer.example.com"
+# enable_https  = false

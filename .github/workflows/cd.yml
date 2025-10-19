@@ -1,0 +1,144 @@
+name: CD - Deploy to Production
+
+on:
+    push:
+        branches: [main]
+    workflow_dispatch:
+
+env:
+    REGISTRY: ghcr.io
+    IMAGE_PREFIX: ${{ github.repository_owner }}/ticketer
+
+jobs:
+    build-and-push:
+        name: Build and Push Docker Images
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            packages: write
+
+        strategy:
+            matrix:
+                service: [auth, event, ticket, payment, frontend]
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v3
+
+            - name: Log in to GitHub Container Registry
+              uses: docker/login-action@v3
+              with:
+                  registry: ${{ env.REGISTRY }}
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Extract metadata
+              id: meta
+              uses: docker/metadata-action@v5
+              with:
+                  images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}-${{ matrix.service }}
+                  tags: |
+                      type=sha,prefix={{branch}}-
+                      type=ref,event=branch
+                      type=semver,pattern={{version}}
+                      latest
+
+            - name: Build and push ${{ matrix.service }}
+              uses: docker/build-push-action@v5
+              with:
+                  context: ${{ matrix.service == 'frontend' && '.' || matrix.service }}
+                  file: ${{ matrix.service == 'frontend' && './Dockerfile.frontend' || format('./{0}/Dockerfile', matrix.service) }}
+                  push: true
+                  tags: ${{ steps.meta.outputs.tags }}
+                  labels: ${{ steps.meta.outputs.labels }}
+                  cache-from: type=gha
+                  cache-to: type=gha,mode=max
+
+    deploy-to-k8s:
+        name: Deploy to Kubernetes
+        runs-on: ubuntu-latest
+        needs: build-and-push
+
+        steps:
+            - name: Checkout code
+              uses: actions/checkout@v4
+
+            - name: Configure AWS credentials
+              uses: aws-actions/configure-aws-credentials@v4
+              with:
+                  aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  aws-region: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+            - name: Get K8s server IP from Terraform output
+              id: get-ip
+              run: |
+                  cd terraform
+                  terraform init
+                  SERVER_IP=$(terraform output -raw instance_public_ip)
+                  echo "server_ip=$SERVER_IP" >> $GITHUB_OUTPUT
+
+            - name: Setup kubectl
+              uses: azure/setup-kubectl@v4
+
+            - name: Configure kubeconfig
+              env:
+                  K8S_SERVER_IP: ${{ steps.get-ip.outputs.server_ip }}
+                  SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+              run: |
+                  mkdir -p ~/.ssh
+                  echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_rsa
+                  chmod 600 ~/.ssh/id_rsa
+                  ssh-keyscan -H $K8S_SERVER_IP >> ~/.ssh/known_hosts
+                  scp -i ~/.ssh/id_rsa ubuntu@$K8S_SERVER_IP:/home/ubuntu/.kube/config ~/.kube/config
+                  sed -i "s/127.0.0.1/$K8S_SERVER_IP/g" ~/.kube/config
+
+            - name: Update ConfigMap with external IP
+              run: |
+                  SERVER_IP="${{ steps.get-ip.outputs.server_ip }}"
+                  sed -i "s/EXTERNAL_IP/$SERVER_IP/g" k8s/configmap.yaml
+
+            - name: Update image references
+              run: |
+                  for file in k8s/*.yaml; do
+                    sed -i "s|ghcr.io/USERNAME|${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}|g" "$file"
+                  done
+
+            - name: Deploy to Kubernetes
+              run: |
+                  kubectl apply -f k8s/namespace.yaml
+                  kubectl apply -f k8s/configmap.yaml
+
+                  # Create secrets if they don't exist
+                  kubectl create secret generic mongodb-credentials \
+                    --from-literal=root-password='${{ secrets.MONGODB_ROOT_PASSWORD }}' \
+                    --namespace=ticketer \
+                    --dry-run=client -o yaml | kubectl apply -f -
+                    
+                  kubectl create secret generic app-secrets \
+                    --from-literal=session-secret='${{ secrets.SESSION_SECRET }}' \
+                    --namespace=ticketer \
+                    --dry-run=client -o yaml | kubectl apply -f -
+
+                  # Deploy all services
+                  kubectl apply -f k8s/mongodb.yaml
+                  kubectl apply -f k8s/auth-service.yaml
+                  kubectl apply -f k8s/services.yaml
+                  kubectl apply -f k8s/frontend.yaml
+                  kubectl apply -f k8s/ingress.yaml
+
+            - name: Wait for deployment
+              run: |
+                  kubectl rollout status deployment/auth-service -n ticketer --timeout=5m
+                  kubectl rollout status deployment/event-service -n ticketer --timeout=5m
+                  kubectl rollout status deployment/ticket-service -n ticketer --timeout=5m
+                  kubectl rollout status deployment/payment-service -n ticketer --timeout=5m
+                  kubectl rollout status deployment/frontend -n ticketer --timeout=5m
+
+            - name: Get deployment status
+              run: |
+                  kubectl get all -n ticketer
+                  echo "Application URL: http://${{ steps.get-ip.outputs.server_ip }}:30080"
