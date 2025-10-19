@@ -53,7 +53,7 @@ cd "$PROJECT_ROOT/auth" && npm install --silent
 cd "$PROJECT_ROOT/event" && npm install --silent
 cd "$PROJECT_ROOT/ticket" && npm install --silent
 cd "$PROJECT_ROOT/payment" && npm install --silent
-cd "$PROJECT_ROOT/frontend" && npm install --silent
+cd "$PROJECT_ROOT" && npm install --silent
 
 echo ""
 echo "✅ Dependencies installed!"
@@ -74,13 +74,13 @@ sleep 2
 start_service "Payment Service" "$PROJECT_ROOT/payment" "3004"
 sleep 2
 
-start_service "Frontend" "$PROJECT_ROOT/frontend" "3000"
+start_service "Frontend (Vite)" "$PROJECT_ROOT" "5173"
 
 echo ""
 echo "✅ All services are starting!"
 echo ""
 echo "📝 Service URLs:"
-echo "  - Frontend:        http://localhost:3000"
+echo "  - Frontend:        http://localhost:5173"
 echo "  - Auth Service:    http://localhost:3001"
 echo "  - Event Service:   http://localhost:3002"
 echo "  - Ticket Service:  http://localhost:3003"
@@ -96,9 +96,9 @@ echo ""
 # Wait a bit then open browser
 sleep 10
 if [[ "$OSTYPE" == "darwin"* ]]; then
-    open http://localhost:3000
+    open http://localhost:5173
 elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    xdg-open http://localhost:3000 2>/dev/null || echo "Please open http://localhost:3000 in your browser"
+    xdg-open http://localhost:5173 2>/dev/null || echo "Please open http://localhost:5173 in your browser"
 fi
 
 echo "✨ Setup complete! Happy coding!"

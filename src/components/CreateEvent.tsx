@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { useMutation } from "convex/react";
-import { api } from "../../convex/_generated/api";
+import { eventService } from "../services/api";
+import { toast } from "sonner";
 
 interface CreateEventProps {
   onBack: () => void;
@@ -21,17 +21,13 @@ export default function CreateEvent({ onBack, onEventCreated }: CreateEventProps
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  const createEvent = useMutation(api.events.create);
-
   const categories = [
-    "Music",
-    "Sports",
-    "Technology",
-    "Business",
-    "Arts",
-    "Food & Drink",
-    "Health",
-    "Education",
+    "concert",
+    "conference",
+    "workshop",
+    "sports",
+    "theater",
+    "other",
   ];
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -40,20 +36,21 @@ export default function CreateEvent({ onBack, onEventCreated }: CreateEventProps
     setIsSubmitting(true);
 
     try {
-      const eventDate = new Date(formData.date).getTime();
-      
-      await createEvent({
+      await eventService.create({
         title: formData.title,
         description: formData.description,
-        date: eventDate,
+        date: formData.date,
         location: formData.location,
         category: formData.category,
         ticketTypes: ticketTypes.filter(ticket => ticket.name && ticket.price >= 0 && ticket.quantity > 0),
       });
 
+      toast.success("Event created successfully!");
       onEventCreated();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create event");
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.error || err.message || "Failed to create event";
+      setError(errorMsg);
+      toast.error(errorMsg);
     } finally {
       setIsSubmitting(false);
     }
@@ -125,7 +122,7 @@ export default function CreateEvent({ onBack, onEventCreated }: CreateEventProps
               >
                 <option value="">Select a category</option>
                 {categories.map(category => (
-                  <option key={category} value={category}>{category}</option>
+                  <option key={category} value={category} className="capitalize">{category}</option>
                 ))}
               </select>
             </div>
@@ -138,6 +135,7 @@ export default function CreateEvent({ onBack, onEventCreated }: CreateEventProps
                 type="datetime-local"
                 value={formData.date}
                 onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
+                min={new Date().toISOString().slice(0, 16)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 required
               />

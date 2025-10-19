@@ -1,10 +1,29 @@
-import { useQuery } from "convex/react";
-import { api } from "../../convex/_generated/api";
+import { useState, useEffect } from "react";
+import { eventService, Event } from "../services/api";
+import { toast } from "sonner";
 
 export default function MyEvents() {
-  const events = useQuery(api.events.getMyEvents);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  if (events === undefined) {
+  useEffect(() => {
+    loadEvents();
+  }, []);
+
+  const loadEvents = async () => {
+    try {
+      setLoading(true);
+      const data = await eventService.getMyEvents();
+      setEvents(data.events);
+    } catch (error: any) {
+      toast.error("Failed to load your events");
+      console.error("Error loading events:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -34,7 +53,7 @@ export default function MyEvents() {
               </div>
               <div className="p-6">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 capitalize">
                     {event.category}
                   </span>
                   <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -53,21 +72,15 @@ export default function MyEvents() {
                 <div className="space-y-2 text-sm text-gray-500">
                   <div className="flex items-center">
                     <span className="mr-2">📅</span>
-                    <span>{new Date(event.date).toLocaleDateString()}</span>
+                    <span>{new Date(event.dateTime).toLocaleDateString()}</span>
                   </div>
                   <div className="flex items-center">
                     <span className="mr-2">📍</span>
-                    <span>{event.location}</span>
+                    <span>{event.venue.city}</span>
                   </div>
                   <div className="flex items-center">
                     <span className="mr-2">🎫</span>
                     <span>{event.ticketTypes.length} ticket type(s)</span>
-                  </div>
-                </div>
-
-                <div className="mt-4 pt-4 border-t">
-                  <div className="text-xs text-gray-500">
-                    Created {new Date(event._creationTime).toLocaleDateString()}
                   </div>
                 </div>
               </div>

@@ -1,23 +1,22 @@
 import { useState } from "react";
-import { useQuery } from "convex/react";
-import { api } from "../convex/_generated/api";
-import { Id } from "../convex/_generated/dataModel";
-import { SignInForm } from "./SignInForm";
-import { SignOutButton } from "./SignOutButton";
+import { useAuth } from "./contexts/AuthContext";
+import SignInForm from "./SignInForm";
+import SignOutButton from "./SignOutButton";
 import EventList from "./components/EventList";
 import EventDetail from "./components/EventDetail";
 import CreateEvent from "./components/CreateEvent";
 import MyOrders from "./components/MyOrders";
 import MyEvents from "./components/MyEvents";
+import { Toaster } from "sonner";
 
 type View = "events" | "event-detail" | "create-event" | "my-orders" | "my-events";
 
 export default function App() {
-  const user = useQuery(api.auth.loggedInUser);
+  const { user, loading } = useAuth();
   const [currentView, setCurrentView] = useState<View>("events");
-  const [selectedEventId, setSelectedEventId] = useState<Id<"events"> | null>(null);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
 
-  if (user === undefined) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
@@ -25,7 +24,7 @@ export default function App() {
     );
   }
 
-  if (user === null) {
+  if (!user) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="max-w-md w-full space-y-8">
@@ -79,6 +78,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <Toaster position="top-right" richColors />
       {/* Navigation */}
       <nav className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -129,7 +129,7 @@ export default function App() {
               </button>
               <div className="flex items-center space-x-2">
                 <span className="text-sm text-gray-700">
-                  Welcome, {user.name || user.email}
+                  Welcome, {user.firstName || user.email}
                 </span>
                 <SignOutButton />
               </div>

@@ -1,10 +1,29 @@
-import { useQuery } from "convex/react";
-import { api } from "../../convex/_generated/api";
+import { useState, useEffect } from "react";
+import { ticketService, Order } from "../services/api";
+import { toast } from "sonner";
 
 export default function MyOrders() {
-  const orders = useQuery(api.orders.getMyOrders);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  if (orders === undefined) {
+  useEffect(() => {
+    loadOrders();
+  }, []);
+
+  const loadOrders = async () => {
+    try {
+      setLoading(true);
+      const data = await ticketService.getMyOrders();
+      setOrders(data.orders);
+    } catch (error: any) {
+      toast.error("Failed to load orders");
+      console.error("Error loading orders:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -36,7 +55,7 @@ export default function MyOrders() {
                     Booking Reference: {order.bookingReference}
                   </p>
                   <p className="text-sm text-gray-600">
-                    Order Date: {new Date(order._creationTime).toLocaleDateString()}
+                    Order Date: {new Date(order.createdAt).toLocaleDateString()}
                   </p>
                 </div>
                 <div className="text-right">
@@ -49,7 +68,7 @@ export default function MyOrders() {
                     {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
                   </span>
                   <p className="text-lg font-bold text-gray-900 mt-1">
-                    ${order.totalAmount}
+                    ${order.totalAmount.toFixed(2)}
                   </p>
                 </div>
               </div>
@@ -59,8 +78,8 @@ export default function MyOrders() {
                 <div className="space-y-2">
                   {order.tickets.map((ticket, index) => (
                     <div key={index} className="flex justify-between text-sm">
-                      <span>{ticket.ticketTypeName} × {ticket.quantity}</span>
-                      <span>${ticket.subtotal}</span>
+                      <span>{ticket.ticketType.name} × {ticket.quantity}</span>
+                      <span>${ticket.subtotal.toFixed(2)}</span>
                     </div>
                   ))}
                 </div>
@@ -79,13 +98,13 @@ export default function MyOrders() {
                 <div className="border-t pt-4 mt-4">
                   <h4 className="font-medium text-gray-900 mb-2">Event Details</h4>
                   <div className="text-sm text-gray-600">
-                    <p>📅 {new Date(order.event.date).toLocaleDateString('en-US', {
+                    <p>📅 {new Date(order.event.dateTime).toLocaleDateString('en-US', {
                       weekday: 'long',
                       year: 'numeric',
                       month: 'long',
                       day: 'numeric',
                     })}</p>
-                    <p>📍 {order.event.location}</p>
+                    <p>📍 {order.event.venue.city}</p>
                   </div>
                 </div>
               )}

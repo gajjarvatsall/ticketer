@@ -95,6 +95,18 @@ router.post("/", verifyAuth, async (req, res) => {
     });
   } catch (error) {
     logger.error("Error creating event:", error);
+
+    // Handle validation errors with more detail
+    if (error.name === "ValidationError") {
+      const validationErrors = Object.values(error.errors).map(
+        (err) => err.message
+      );
+      return res.status(400).json({
+        error: "Validation failed",
+        details: validationErrors.join(", "),
+      });
+    }
+
     res
       .status(500)
       .json({ error: "Internal server error", details: error.message });

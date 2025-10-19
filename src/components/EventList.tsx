@@ -1,31 +1,43 @@
-import { useState } from "react";
-import { useQuery } from "convex/react";
-import { api } from "../../convex/_generated/api";
-import { Id } from "../../convex/_generated/dataModel";
+import { useState, useEffect } from "react";
+import { eventService, Event } from "../services/api";
+import { toast } from "sonner";
 
 interface EventListProps {
-  onEventSelect: (eventId: Id<"events">) => void;
+  onEventSelect: (eventId: string) => void;
 }
 
 export default function EventList({ onEventSelect }: EventListProps) {
   const [selectedCategory, setSelectedCategory] = useState<string>("");
-  const events = useQuery(api.events.list, { 
-    category: selectedCategory || undefined,
-    limit: 20 
-  });
+  const [events, setEvents] = useState<Event[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const categories = [
-    "Music",
-    "Sports",
-    "Technology",
-    "Business",
-    "Arts",
-    "Food & Drink",
-    "Health",
-    "Education",
+    "concert",
+    "conference",
+    "workshop",
+    "sports",
+    "theater",
+    "other",
   ];
 
-  if (events === undefined) {
+  useEffect(() => {
+    loadEvents();
+  }, [selectedCategory]);
+
+  const loadEvents = async () => {
+    try {
+      setLoading(true);
+      const data = await eventService.getAll(selectedCategory || undefined);
+      setEvents(data.events);
+    } catch (error: any) {
+      toast.error("Failed to load events");
+      console.error("Error loading events:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -54,7 +66,7 @@ export default function EventList({ onEventSelect }: EventListProps) {
             <button
               key={category}
               onClick={() => setSelectedCategory(category)}
-              className={`px-4 py-2 rounded-full text-sm font-medium ${
+              className={`px-4 py-2 rounded-full text-sm font-medium capitalize ${
                 selectedCategory === category
                   ? "bg-blue-600 text-white"
                   : "bg-gray-200 text-gray-700 hover:bg-gray-300"
@@ -85,11 +97,11 @@ export default function EventList({ onEventSelect }: EventListProps) {
               </div>
               <div className="p-6">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 capitalize">
                     {event.category}
                   </span>
                   <span className="text-sm text-gray-500">
-                    {new Date(event.date).toLocaleDateString()}
+                    {new Date(event.dateTime).toLocaleDateString()}
                   </span>
                 </div>
                 <p className="text-gray-600 text-sm mb-3 line-clamp-2">
@@ -97,7 +109,7 @@ export default function EventList({ onEventSelect }: EventListProps) {
                 </p>
                 <div className="flex items-center justify-between">
                   <div className="text-sm text-gray-500">
-                    📍 {event.location}
+                    📍 {event.venue.city}
                   </div>
                   <div className="text-sm font-medium text-gray-900">
                     From ${Math.min(...event.ticketTypes.map(t => t.price))}

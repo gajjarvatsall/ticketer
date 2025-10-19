@@ -1,13 +1,12 @@
 import { createRoot } from "react-dom/client";
-import { ConvexAuthProvider } from "@convex-dev/auth/react";
-import { ConvexReactClient } from "convex/react";
 import "./index.css";
 import App from "./App";
-
-const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL as string);
+import { AuthProvider } from "./contexts/AuthContext";
+import { Toaster } from "sonner";
 
 createRoot(document.getElementById("root")!).render(
-  <ConvexAuthProvider client={convex}>
+  <AuthProvider>
     <App />
-  </ConvexAuthProvider>,
+    <Toaster position="top-right" richColors />
+  </AuthProvider>,
 );

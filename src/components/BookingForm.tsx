@@ -1,37 +1,28 @@
 import { useState } from "react";
-import { useMutation, useAction } from "convex/react";
-import { api } from "../../convex/_generated/api";
+import { ticketService, Event } from "../services/api";
+import { toast } from "sonner";
+import { useAuth } from "../contexts/AuthContext";
 
 interface BookingFormProps {
-  event: any;
-  onClose: () => void;
+  event: Event;
+  onBack: () => void;
   onSuccess: () => void;
 }
 
-export default function BookingForm({ event, onClose, onSuccess }: BookingFormProps) {
+export default function BookingForm({ event, onBack, onSuccess }: BookingFormProps) {
+  const { user } = useAuth();
   const [selectedTickets, setSelectedTickets] = useState<Record<string, number>>({});
   const [customerInfo, setCustomerInfo] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
+    firstName: user?.firstName || "",
+    lastName: user?.lastName || "",
+    email: user?.email || "",
     phone: "",
   });
-  const [paymentDetails, setPaymentDetails] = useState({
-    paymentMethod: "credit_card" as const,
-    cardNumber: "",
-    expiryMonth: "",
-    expiryYear: "",
-    cvv: "",
-    cardholderName: "",
-  });
-  const [step, setStep] = useState<"tickets" | "customer" | "payment" | "processing">("tickets");
-  const [error, setError] = useState("");
-
-  const createOrder = useMutation(api.orders.create);
-  const processPayment = useAction(api.payments.processPayment);
+  const [step, setStep] = useState<"tickets" | "customer" | "confirm">("tickets");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const totalAmount = Object.entries(selectedTickets).reduce((total, [ticketName, quantity]) => {
-    const ticket = event.ticketTypes.find((t: any) => t.name === ticketName);
+    const ticket = event.ticketTypes.find((t) => t.name === ticketName);
     return total + (ticket ? ticket.price * quantity : 0);
   }, 0);
 
@@ -45,11 +36,9 @@ export default function BookingForm({ event, onClose, onSuccess }: BookingFormPr
   };
 
   const handleSubmit = async () => {
-    setError("");
-    setStep("processing");
+    setIsSubmitting(true);
 
     try {
-      // Create order
       const tickets = Object.entries(selectedTickets)
         .filter(([_, quantity]) => quantity > 0)
         .map(([ticketTypeName, quantity]) => ({
@@ -57,7 +46,7 @@ export default function BookingForm({ event, onClose, onSuccess }: BookingFormPr
           quantity,
         }));
 
-      const orderResult = await createOrder({
+      const result = await ticketService.book({
         eventId: event._id,
         tickets,
         customerInfo: {
@@ -68,35 +57,18 @@ export default function BookingForm({ event, onClose, onSuccess }: BookingFormPr
         },
       });
 
-      // Process payment
-      const paymentResult = await processPayment({
-        orderId: orderResult.orderId,
-        paymentMethod: paymentDetails.paymentMethod,
-        paymentDetails: {
-          cardNumber: paymentDetails.cardNumber,
-          expiryMonth: paymentDetails.expiryMonth,
-          expiryYear: paymentDetails.expiryYear,
-          cvv: paymentDetails.cvv,
-          cardholderName: paymentDetails.cardholderName,
-        },
-      });
-
-      if (paymentResult.success) {
-        onSuccess();
-      } else {
-        setError(paymentResult.message || "Payment failed");
-        setStep("payment");
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
-      setStep("payment");
+      toast.success(`Booking successful! Reference: ${result.bookingReference}`);
+      onSuccess();
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.error || err.message || "Booking failed";
+      toast.error(errorMsg);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const canProceedFromTickets = totalTickets > 0;
   const canProceedFromCustomer = customerInfo.firstName && customerInfo.lastName && customerInfo.email;
-  const canProceedFromPayment = paymentDetails.cardNumber && paymentDetails.expiryMonth && 
-    paymentDetails.expiryYear && paymentDetails.cvv && paymentDetails.cardholderName;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -105,9 +77,8 @@ export default function BookingForm({ event, onClose, onSuccess }: BookingFormPr
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold text-gray-900">Book Tickets</h2>
             <button
-              onClick={onClose}
+              onClick={onBack}
               className="text-gray-400 hover:text-gray-600"
-              disabled={step === "processing"}
             >
               ✕
             </button>
@@ -115,29 +86,23 @@ export default function BookingForm({ event, onClose, onSuccess }: BookingFormPr
 
           {/* Progress Steps */}
           <div className="flex items-center mb-8">
-            {["tickets", "customer", "payment"].map((stepName, index) => (
+            {["tickets", "customer", "confirm"].map((stepName, index) => (
               <div key={stepName} className="flex items-center">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
                   step === stepName ? "bg-blue-600 text-white" :
-                  ["tickets", "customer", "payment"].indexOf(step) > index ? "bg-green-600 text-white" :
+                  ["tickets", "customer", "confirm"].indexOf(step) > index ? "bg-green-600 text-white" :
                   "bg-gray-200 text-gray-600"
                 }`}>
                   {index + 1}
                 </div>
                 {index < 2 && (
                   <div className={`w-16 h-1 mx-2 ${
-                    ["tickets", "customer", "payment"].indexOf(step) > index ? "bg-green-600" : "bg-gray-200"
+                    ["tickets", "customer", "confirm"].indexOf(step) > index ? "bg-green-600" : "bg-gray-200"
                   }`} />
                 )}
               </div>
             ))}
           </div>
-
-          {error && (
-            <div className="mb-4 p-3 bg-red-100 border border-red-400 text-red-700 rounded">
-              {error}
-            </div>
-          )}
 
           {/* Step Content */}
           {step === "tickets" && (
@@ -157,9 +122,9 @@ export default function BookingForm({ event, onClose, onSuccess }: BookingFormPr
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-500">
-                        {ticket.available} available
+                        {ticket.quantity} available
                       </span>
-                      {ticket.available > 0 ? (
+                      {ticket.quantity > 0 ? (
                         <div className="flex items-center space-x-2">
                           <button
                             onClick={() => handleTicketChange(ticket.name, (selectedTickets[ticket.name] || 0) - 1)}
@@ -172,7 +137,7 @@ export default function BookingForm({ event, onClose, onSuccess }: BookingFormPr
                           <button
                             onClick={() => handleTicketChange(ticket.name, (selectedTickets[ticket.name] || 0) + 1)}
                             className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center hover:bg-gray-300"
-                            disabled={(selectedTickets[ticket.name] || 0) >= ticket.available}
+                            disabled={(selectedTickets[ticket.name] || 0) >= ticket.quantity}
                           >
                             +
                           </button>
@@ -251,147 +216,76 @@ export default function BookingForm({ event, onClose, onSuccess }: BookingFormPr
             </div>
           )}
 
-          {step === "payment" && (
+          {step === "confirm" && (
             <div>
-              <h3 className="text-lg font-semibold mb-4">Payment Information</h3>
+              <h3 className="text-lg font-semibold mb-4">Confirm Booking</h3>
               <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Cardholder Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={paymentDetails.cardholderName}
-                    onChange={(e) => setPaymentDetails(prev => ({ ...prev, cardholderName: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <h4 className="font-medium mb-2">Order Summary</h4>
+                  {Object.entries(selectedTickets)
+                    .filter(([_, quantity]) => quantity > 0)
+                    .map(([ticketName, quantity]) => {
+                      const ticket = event.ticketTypes.find((t) => t.name === ticketName);
+                      return (
+                        <div key={ticketName} className="flex justify-between text-sm mb-1">
+                          <span>{ticketName} × {quantity}</span>
+                          <span>${ticket ? (ticket.price * quantity).toFixed(2) : 0}</span>
+                        </div>
+                      );
+                    })}
+                  <div className="border-t pt-2 mt-2 flex justify-between font-bold">
+                    <span>Total</span>
+                    <span>${totalAmount.toFixed(2)}</span>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Card Number *
-                  </label>
-                  <input
-                    type="text"
-                    value={paymentDetails.cardNumber}
-                    onChange={(e) => setPaymentDetails(prev => ({ ...prev, cardNumber: e.target.value.replace(/\D/g, '') }))}
-                    placeholder="1234 5678 9012 3456"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    required
-                  />
+
+                <div className="p-4 bg-gray-50 rounded-lg">
+                  <h4 className="font-medium mb-2">Customer Information</h4>
+                  <p className="text-sm text-gray-600">{customerInfo.firstName} {customerInfo.lastName}</p>
+                  <p className="text-sm text-gray-600">{customerInfo.email}</p>
+                  {customerInfo.phone && <p className="text-sm text-gray-600">{customerInfo.phone}</p>}
                 </div>
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Month *
-                    </label>
-                    <select
-                      value={paymentDetails.expiryMonth}
-                      onChange={(e) => setPaymentDetails(prev => ({ ...prev, expiryMonth: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    >
-                      <option value="">MM</option>
-                      {Array.from({ length: 12 }, (_, i) => (
-                        <option key={i + 1} value={String(i + 1).padStart(2, '0')}>
-                          {String(i + 1).padStart(2, '0')}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Year *
-                    </label>
-                    <select
-                      value={paymentDetails.expiryYear}
-                      onChange={(e) => setPaymentDetails(prev => ({ ...prev, expiryYear: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    >
-                      <option value="">YYYY</option>
-                      {Array.from({ length: 10 }, (_, i) => (
-                        <option key={i} value={String(new Date().getFullYear() + i)}>
-                          {new Date().getFullYear() + i}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      CVV *
-                    </label>
-                    <input
-                      type="text"
-                      value={paymentDetails.cvv}
-                      onChange={(e) => setPaymentDetails(prev => ({ ...prev, cvv: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
-                      placeholder="123"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      required
-                    />
-                  </div>
+
+                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    ℹ️ By completing this booking, you agree to the terms and conditions. 
+                    A confirmation email will be sent to {customerInfo.email}.
+                  </p>
                 </div>
               </div>
-
-              <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-                <h4 className="font-medium mb-2">Order Summary</h4>
-                {Object.entries(selectedTickets)
-                  .filter(([_, quantity]) => quantity > 0)
-                  .map(([ticketName, quantity]) => {
-                    const ticket = event.ticketTypes.find((t: any) => t.name === ticketName);
-                    return (
-                      <div key={ticketName} className="flex justify-between text-sm">
-                        <span>{ticketName} × {quantity}</span>
-                        <span>${ticket ? ticket.price * quantity : 0}</span>
-                      </div>
-                    );
-                  })}
-                <div className="border-t pt-2 mt-2 flex justify-between font-bold">
-                  <span>Total</span>
-                  <span>${totalAmount}</span>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {step === "processing" && (
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              <p className="text-gray-600">Processing your payment...</p>
             </div>
           )}
 
           {/* Navigation Buttons */}
-          {step !== "processing" && (
-            <div className="flex justify-between mt-8">
-              <button
-                onClick={() => {
-                  if (step === "customer") setStep("tickets");
-                  else if (step === "payment") setStep("customer");
-                  else onClose();
-                }}
-                className="px-4 py-2 text-gray-600 hover:text-gray-800"
-              >
-                {step === "tickets" ? "Cancel" : "Back"}
-              </button>
-              
-              <button
-                onClick={() => {
-                  if (step === "tickets") setStep("customer");
-                  else if (step === "customer") setStep("payment");
-                  else handleSubmit();
-                }}
-                disabled={
-                  (step === "tickets" && !canProceedFromTickets) ||
-                  (step === "customer" && !canProceedFromCustomer) ||
-                  (step === "payment" && !canProceedFromPayment)
-                }
-                className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
-              >
-                {step === "payment" ? "Complete Payment" : "Next"}
-              </button>
-            </div>
-          )}
+          <div className="flex justify-between mt-8">
+            <button
+              onClick={() => {
+                if (step === "customer") setStep("tickets");
+                else if (step === "confirm") setStep("customer");
+                else onBack();
+              }}
+              className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              disabled={isSubmitting}
+            >
+              {step === "tickets" ? "Cancel" : "Back"}
+            </button>
+            
+            <button
+              onClick={() => {
+                if (step === "tickets") setStep("customer");
+                else if (step === "customer") setStep("confirm");
+                else handleSubmit();
+              }}
+              disabled={
+                isSubmitting ||
+                (step === "tickets" && !canProceedFromTickets) ||
+                (step === "customer" && !canProceedFromCustomer)
+              }
+              className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? "Processing..." : step === "confirm" ? "Complete Booking" : "Next"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
