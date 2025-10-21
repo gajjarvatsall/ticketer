@@ -19,9 +19,9 @@ variable "project_name" {
 
 # EC2 Instance Variables
 variable "instance_type" {
-  description = "EC2 instance type (t2.micro is free tier eligible)"
+  description = "EC2 instance type (t3.small recommended for MongoDB + services, free tier eligible for 12 months)"
   type        = string
-  default     = "t2.micro"
+  default     = "t3.small"
 }
 
 variable "key_name" {

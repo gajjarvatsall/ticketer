@@ -3,64 +3,64 @@ locals {
   user_data = <<-EOF
     #!/bin/bash
     set -e
-    
+
     # Update system
     apt-get update
     apt-get upgrade -y
-    
+
     # Install required packages
-    apt-get install -y curl git jq
-    
-    # Install Docker
-    curl -fsSL https://get.docker.com -o get-docker.sh
-    sh get-docker.sh
-    usermod -aG docker ubuntu
-    
-    # Install k3s (lightweight Kubernetes)
-    curl -sfL https://get.k3s.io | sh -s - \
-      --write-kubeconfig-mode 644 \
-      --disable traefik \
-      --node-name ticketer-node
-    
-    # Wait for k3s to be ready
-    until kubectl get nodes | grep -q Ready; do
-      echo "Waiting for k3s to be ready..."
+    apt-get install -y curl git jq ca-certificates snapd
+
+    # Add 1G swap to help on t2.micro (1GB RAM)
+    if [ ! -f /swapfile ]; then
+      fallocate -l 1G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=1024
+      chmod 600 /swapfile
+      mkswap /swapfile
+      swapon /swapfile
+      echo '/swapfile none swap sw 0 0' >> /etc/fstab
+    fi
+
+    # Wait for stable public IP (handles Elastic IP association)
+    STABLE_COUNT=0
+    LAST_IP=""
+    for i in $(seq 1 60); do
+      CUR_IP=$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4 || true)
+      if [ -n "$CUR_IP" ] && [ "$CUR_IP" = "$LAST_IP" ]; then
+        STABLE_COUNT=$((STABLE_COUNT+1))
+      else
+        STABLE_COUNT=0
+      fi
+      LAST_IP="$CUR_IP"
+      if [ $STABLE_COUNT -ge 6 ]; then
+        break
+      fi
       sleep 5
     done
-    
-    # Configure kubectl for ubuntu user
+    PUBLIC_IP="$LAST_IP"
+
+    echo "[user-data] Installing MicroK8s with PUBLIC_IP=$PUBLIC_IP" | tee -a /var/log/user-data.log
+    snap install microk8s --classic --channel=1.29/stable
+    usermod -aG microk8s ubuntu
     mkdir -p /home/ubuntu/.kube
-    cp /etc/rancher/k3s/k3s.yaml /home/ubuntu/.kube/config
     chown -R ubuntu:ubuntu /home/ubuntu/.kube
-    
-    # Install Helm
-    curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
-    
-    # Create namespace for ticketer
-    kubectl create namespace ticketer || true
-    
-    # Create MongoDB credentials secret
-    kubectl create secret generic mongodb-credentials \
-      --from-literal=root-password='${var.mongodb_root_password}' \
-      --namespace=ticketer \
-      --dry-run=client -o yaml | kubectl apply -f -
-    
-    # Create application secrets
-    kubectl create secret generic app-secrets \
-      --from-literal=session-secret='${var.session_secret}' \
-      --namespace=ticketer \
-      --dry-run=client -o yaml | kubectl apply -f -
-    
-    # Download and apply Kubernetes manifests
-    mkdir -p /home/ubuntu/ticketer-k8s
-    cd /home/ubuntu/ticketer-k8s
-    
-    # Signal completion
-    echo "K3s installation complete" > /tmp/k3s-ready
-    
+
+    echo "[user-data] Waiting for MicroK8s to be ready" | tee -a /var/log/user-data.log
+    microk8s status --wait-ready
+
+    # Enable essential addons
+    microk8s enable dns storage
+    # Optional ingress if you want to use Ingress instead of NodePort
+    microk8s enable ingress || true
+
+    # Generate kubeconfig for ubuntu user
+    microk8s config > /home/ubuntu/.kube/config
+    chown -R ubuntu:ubuntu /home/ubuntu/.kube
+
     # Save public IP for easy access
-    echo $(curl -s http://169.254.169.254/latest/meta-data/public-ipv4) > /home/ubuntu/public-ip.txt
-    
+    echo "$PUBLIC_IP" > /home/ubuntu/public-ip.txt
+
+    echo "MicroK8s installation complete" | tee -a /var/log/user-data.log
+    echo "ready" > /tmp/microk8s-ready
   EOF
 }
 
@@ -99,13 +99,13 @@ resource "aws_eip" "k3s_server" {
   }
 }
 
-# Null resource to wait for k3s to be ready
-resource "null_resource" "wait_for_k3s" {
+# Null resource to wait for MicroK8s to be ready (basic grace period)
+resource "null_resource" "wait_for_microk8s" {
   depends_on = [aws_instance.k3s_server]
 
   provisioner "local-exec" {
     command = <<-EOT
-      echo "Waiting for K3s to be ready on ${aws_eip.k3s_server.public_ip}..."
+      echo "Waiting for MicroK8s to be ready on ${aws_eip.k3s_server.public_ip}..."
       sleep 60
     EOT
   }

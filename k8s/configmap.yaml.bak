@@ -5,12 +5,9 @@ metadata:
   namespace: ticketer
 data:
   MONGODB_URI_BASE: "mongodb://admin:PASSWORD@mongodb:27017"
-  # Backend services communicate via internal ClusterIP (DNS)
-  # This works reliably within the Kubernetes cluster
   AUTH_SERVICE_URL: "http://auth-service:3001"
   EVENT_SERVICE_URL: "http://event-service:3002"
   TICKET_SERVICE_URL: "http://ticket-service:3003"
   PAYMENT_SERVICE_URL: "http://payment-service:3004"
   NODE_ENV: "production"
-  # Frontend URL uses external IP for CORS
-  FRONTEND_URL: "http://EXTERNAL_IP:30080"
+  FRONTEND_URL: "http://52.91.209.232"

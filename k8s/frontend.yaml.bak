@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
       - name: frontend
-        image: ghcr.io/gajjarvatsall/ticketer-frontend:latest
+        image: ghcr.io/USERNAME/ticketer-frontend:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 80

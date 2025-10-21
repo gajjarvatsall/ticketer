@@ -54,9 +54,10 @@ app.use(
       mongoUrl: process.env.MONGODB_URI || "mongodb://localhost:27017/auth_db",
     }),
     cookie: {
-      secure: process.env.NODE_ENV === "production",
+      secure: false, // Set to false for HTTP (would be true for HTTPS)
       httpOnly: true,
       maxAge: 24 * 60 * 60 * 1000, // 24 hours
+      sameSite: "lax", // Allows cookies to be sent on navigation
     },
   })
 );

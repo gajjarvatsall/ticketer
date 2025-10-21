@@ -1,10 +1,11 @@
 import axios from 'axios';
 
-// API Base URLs - can be configured via environment variables
-const AUTH_SERVICE_URL = import.meta.env.VITE_AUTH_SERVICE_URL || 'http://localhost:3001';
-const EVENT_SERVICE_URL = import.meta.env.VITE_EVENT_SERVICE_URL || 'http://localhost:3002';
-const TICKET_SERVICE_URL = import.meta.env.VITE_TICKET_SERVICE_URL || 'http://localhost:3003';
-const PAYMENT_SERVICE_URL = import.meta.env.VITE_PAYMENT_SERVICE_URL || 'http://localhost:3004';
+// API Base URLs - Use relative URLs that will be proxied by nginx in production
+// or configured via environment variables for development
+const AUTH_SERVICE_URL = import.meta.env.VITE_AUTH_SERVICE_URL || '/api/auth';
+const EVENT_SERVICE_URL = import.meta.env.VITE_EVENT_SERVICE_URL || '/api/events';
+const TICKET_SERVICE_URL = import.meta.env.VITE_TICKET_SERVICE_URL || '/api/tickets';
+const PAYMENT_SERVICE_URL = import.meta.env.VITE_PAYMENT_SERVICE_URL || '/api/payments';
 
 // Create axios instances with credentials support
 const authAPI = axios.create({
@@ -95,7 +96,7 @@ export interface Order {
 // Auth Service API
 export const authService = {
   async login(email: string, password: string) {
-    const response = await authAPI.post('/api/auth/login', { email, password });
+    const response = await authAPI.post('/login', { email, password });
     return response.data;
   },
 
@@ -105,22 +106,22 @@ export const authService = {
     firstName: string;
     lastName: string;
   }) {
-    const response = await authAPI.post('/api/auth/register', userData);
+    const response = await authAPI.post('/register', userData);
     return response.data;
   },
 
   async logout() {
-    const response = await authAPI.post('/api/auth/logout');
+    const response = await authAPI.post('/logout');
     return response.data;
   },
 
   async getMe(): Promise<{ user: User }> {
-    const response = await authAPI.get('/api/auth/me');
+    const response = await authAPI.get('/me');
     return response.data;
   },
 
   async verify() {
-    const response = await authAPI.get('/api/auth/verify');
+    const response = await authAPI.get('/verify');
     return response.data;
   },
 };
@@ -129,12 +130,12 @@ export const authService = {
 export const eventService = {
   async getAll(category?: string): Promise<{ events: Event[] }> {
     const params = category ? { category } : {};
-    const response = await eventAPI.get('/api/events', { params });
+    const response = await eventAPI.get('/', { params });
     return response.data;
   },
 
   async getById(id: string): Promise<{ event: Event }> {
-    const response = await eventAPI.get(`/api/events/${id}`);
+    const response = await eventAPI.get(`/${id}`);
     return response.data;
   },
 
@@ -146,12 +147,12 @@ export const eventService = {
     category: string;
     ticketTypes: TicketType[];
   }): Promise<{ message: string; event: Event }> {
-    const response = await eventAPI.post('/api/events', eventData);
+    const response = await eventAPI.post('/', eventData);
     return response.data;
   },
 
   async getMyEvents(): Promise<{ events: Event[] }> {
-    const response = await eventAPI.get('/api/events/my/events');
+    const response = await eventAPI.get('/my/events');
     return response.data;
   },
 };
@@ -173,17 +174,17 @@ export const ticketService = {
     bookingReference: string;
     totalAmount: number;
   }> {
-    const response = await ticketAPI.post('/api/tickets/book', bookingData);
+    const response = await ticketAPI.post('/book', bookingData);
     return response.data;
   },
 
   async getMyOrders(): Promise<{ orders: Order[] }> {
-    const response = await ticketAPI.get('/api/tickets/orders');
+    const response = await ticketAPI.get('/orders');
     return response.data;
   },
 
   async getOrder(id: string): Promise<{ order: Order }> {
-    const response = await ticketAPI.get(`/api/tickets/orders/${id}`);
+    const response = await ticketAPI.get(`/orders/${id}`);
     return response.data;
   },
 };
@@ -204,12 +205,12 @@ export const paymentService = {
     message: string;
     payment?: any;
   }> {
-    const response = await paymentAPI.post('/api/payment/process', paymentData);
+    const response = await paymentAPI.post('/process', paymentData);
     return response.data;
   },
 
   async getPaymentHistory(): Promise<{ payments: any[] }> {
-    const response = await paymentAPI.get('/api/payment/history');
+    const response = await paymentAPI.get('/history');
     return response.data;
   },
 };

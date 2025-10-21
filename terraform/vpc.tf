@@ -83,11 +83,11 @@ resource "aws_security_group" "k3s_server" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # K3s API Server
+  # Kubernetes API (MicroK8s default port)
   ingress {
-    description = "K3s API"
-    from_port   = 6443
-    to_port     = 6443
+    description = "Kubernetes API (MicroK8s)"
+    from_port   = 16443
+    to_port     = 16443
     protocol    = "tcp"
     cidr_blocks = var.allowed_ssh_cidr
   }

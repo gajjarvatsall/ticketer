@@ -10,7 +10,7 @@ spec:
   resources:
     requests:
       storage: 10Gi
-  storageClassName: microk8s-hostpath # MicroK8s default storage class
+  storageClassName: local-path # k3s default storage class
 
 ---
 apiVersion: apps/v1
@@ -88,11 +88,10 @@ metadata:
   labels:
     app: mongodb
 spec:
-  type: NodePort
+  type: ClusterIP
   ports:
   - port: 27017
     targetPort: 27017
-    nodePort: 30017
     protocol: TCP
     name: mongodb
   selector:

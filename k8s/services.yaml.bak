@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
       - name: event-service
-        image: ghcr.io/gajjarvatsall/ticketer-event:latest
+        image: ghcr.io/USERNAME/ticketer-event:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 3002
@@ -77,11 +77,10 @@ metadata:
   labels:
     app: event-service
 spec:
-  type: NodePort
+  type: ClusterIP
   ports:
   - port: 3002
     targetPort: 3002
-    nodePort: 30082
     protocol: TCP
     name: http
   selector:
@@ -107,7 +106,7 @@ spec:
     spec:
       containers:
       - name: ticket-service
-        image: ghcr.io/gajjarvatsall/ticketer-ticket:latest
+        image: ghcr.io/USERNAME/ticketer-ticket:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 3003
@@ -171,11 +170,10 @@ metadata:
   labels:
     app: ticket-service
 spec:
-  type: NodePort
+  type: ClusterIP
   ports:
   - port: 3003
     targetPort: 3003
-    nodePort: 30083
     protocol: TCP
     name: http
   selector:
@@ -201,7 +199,7 @@ spec:
     spec:
       containers:
       - name: payment-service
-        image: ghcr.io/gajjarvatsall/ticketer-payment:latest
+        image: ghcr.io/USERNAME/ticketer-payment:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 3004
@@ -265,11 +263,10 @@ metadata:
   labels:
     app: payment-service
 spec:
-  type: NodePort
+  type: ClusterIP
   ports:
   - port: 3004
     targetPort: 3004
-    nodePort: 30084
     protocol: TCP
     name: http
   selector:
